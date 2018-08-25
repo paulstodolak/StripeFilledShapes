@@ -33,13 +33,13 @@ class StripeFilledEllipse {
     
     stroke(0);
     
-    x2 = (distance * cos(theta)) + x;
-    y2 = (distance * sin(theta)) + y;
+    x2 = (distance * cos(mouse_theta)) + x;
+    y2 = (distance * sin(mouse_theta)) + y;
     
     line(x, y, x2, y2);
     
-    x2 = (-distance * cos(theta)) + x;
-    y2 = (-distance * sin(theta)) + y;
+    x2 = (-distance * cos(mouse_theta)) + x;
+    y2 = (-distance * sin(mouse_theta)) + y;
     
     line(x, y, x2, y2);
     
