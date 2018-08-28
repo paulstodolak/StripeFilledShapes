@@ -1,205 +1,122 @@
-class StripeFilledRect {
-  float shape_width;
-  float shape_height;
-  float shape_theta;
-  float diagonal;
-  float rotation_theta;
-  float[] center   = new float[2]; // [x][y]
-  float[] corner_1 = new float[2]; // [x][y]
-  float[] corner_2 = new float[2]; // [x][y]
-  float[] corner_3 = new float[2]; // [x][y]
-  float[] corner_4 = new float[2]; // [x][y]
-  float[] line_1   = new float[6]; // [x1][y1][x2][y2][slope][y-intercept]
-  float[][] edges  = {new float[9], new float[9], new float[9], new float[9]}; // [[x1][y1][x2][y2][slope][y-intercept][x3][y3][distance]]
+class StripeFilledRect extends StripeFilledShape {
+  float DIAGONAL;
+  float HALF_DIAGONAL;
+  int PATTERN_AMOUNT;
+  PVector[] RECT_CORNERS = new PVector[4];
+  Edge[] edges           = new Edge[4];
+  Stripe[] stripes       = new Stripe[0];
   
-  StripeFilledRect(float _x, float _y, float _width, float _height) {
-    center[0]    = _x;
-    center[1]    = _y;
-    line_1[0]    = _x;
-    line_1[1]    = _y;
-    shape_width  = _width;
-    shape_height = _height;
-    shape_theta  = atan2(shape_height / 2, shape_width / 2);
-    diagonal     = sqrt((shape_width / 2) * (shape_width / 2) + (shape_height / 2) * (shape_height / 2));
+  float perpendicular_theta;
+    
+  StripeFilledRect(float _x, float _y, float _width, float _height, float _pattern_width, float _pattern_gap) {
+    super(_x, _y, _width, _height, _pattern_width, _pattern_gap);
+    initializeConstants();
+  }
+  
+  StripeFilledRect(PVector _origin, float _width, float _height, float _pattern_width, float _pattern_gap) {
+    super(_origin, _width, _height, _pattern_width, _pattern_gap);
+    initializeConstants();
+  }
+  
+  void initializeConstants() {
+    DIAGONAL       = sqrt((SHAPE_WIDTH) * (SHAPE_WIDTH) + (SHAPE_HEIGHT) * (SHAPE_HEIGHT));
+    HALF_DIAGONAL  = DIAGONAL / 2;
+    PATTERN_AMOUNT = round(DIAGONAL / (PATTERN_WIDTH + PATTERN_BUFFER));
+    println(PATTERN_AMOUNT);
   }
   
   void display() {
-    float _x;
-    float _y;
-    float _x2;
-    float _y2;
-    int shortest_distance;
-    int short_distance;
+    float x1;
+    float y1;
+    float x2;
+    float y2;;
     
     rectMode(CENTER);
     noStroke();
     
     pushMatrix();
-    translate(center[0], center[1]);
+    translate(ORIGIN.x, ORIGIN.y);
     rotate(rotation_theta);
-    rect(0, 0, shape_width, shape_height);
+    rect(0, 0, SHAPE_WIDTH, SHAPE_HEIGHT, 0.25);
     popMatrix();
    
-    findCorners();
+    perpendicular_theta = mouse_theta + HALF_PI;
    
-    stroke(0);
+    findCorners();
     
-    _x = center[0];
-    _y = center[1];
-    _x2 = (diagonal * cos(mouse_theta)) + _x;
-    _y2 = (diagonal * sin(mouse_theta)) + _y;
-    line_1[2] = _x2;
-    line_1[3] = _y2;
-    
-    line_1[4] = getSlope(line_1[0], line_1[1], line_1[2], line_1[3]);
-    line_1[5] = getYIntercept(line_1[0], line_1[1], line_1[4]);
-    
+    edges[0] = new Edge(RECT_CORNERS[0], RECT_CORNERS[1]);
+    edges[1] = new Edge(RECT_CORNERS[1], RECT_CORNERS[2]);
+    edges[2] = new Edge(RECT_CORNERS[2], RECT_CORNERS[3]);
+    edges[3] = new Edge(RECT_CORNERS[3], RECT_CORNERS[0]);
+
+    stroke(255, 0, 0);
+ 
+    // Get perpendicular line
+    x1 = (HALF_DIAGONAL * cos(perpendicular_theta)) + ORIGIN.x;
+    y1 = (HALF_DIAGONAL * sin(perpendicular_theta)) + ORIGIN.y;
+    x2 = (-HALF_DIAGONAL * cos(perpendicular_theta)) + ORIGIN.x;
+    y2 = (-HALF_DIAGONAL * sin(perpendicular_theta)) + ORIGIN.y;
+    line(x1, y1, x2, y2);
+
+    // Draw Edges
     for (int i = 0; i < edges.length; i++) {
-      edges[i][4] = getSlope(edges[i][0], edges[i][1], edges[i][2], edges[i][3]);
-      edges[i][5] = getYIntercept(edges[i][0], edges[i][1], edges[i][4]);
+      edges[i].display();
+    }
+
+    stroke(0);
+    // Draw Pattern
+    int toggle = -1;
+    int offset_count = 0;
+    ellipse(ORIGIN.x, ORIGIN.y, 5, 5);
+    for (int i = 1; i < PATTERN_AMOUNT; i++) {
+      Stripe stripe;
+      int offset;
       
-      if (!Float.isFinite(edges[i][4]) && !Float.isFinite(line_1[4])) {
-         println("PARALLEL VERTICAL");
-        edges[i][6] = center[0];
-        edges[i][7] = edges[i][1];
-      }else if (!Float.isFinite(edges[i][4])) {
-         println("EDGE VERTICAL");
-        edges[i][6] = edges[i][0];
-        edges[i][7] = (line_1[4] * edges[i][6]) + line_1[5];
-      }else if (!Float.isFinite(line_1[4])) {
-         println("PATTERN VERTICAL");
-        edges[i][6] = center[0];
-        edges[i][7] = (edges[i][4] * edges[i][6]) + edges[i][5];
-      }else if (line_1[4] == 0) {
-         println("PATTERN HORIZONTAL");
-         edges[i][6] = (line_1[5] - edges[i][5]) / (edges[i][4] - line_1[4]);
-         edges[i][7] = center[1];
-      }else {
-         println("NORMAL");
-        edges[i][6] = (line_1[5] - edges[i][5]) / (edges[i][4] - line_1[4]);
-        edges[i][7] = (line_1[4] * edges[i][6]) + line_1[5];
+      offset = round((PATTERN_WIDTH + PATTERN_BUFFER) * offset_count) * toggle;
+      x1 = (offset * cos(perpendicular_theta)) + ORIGIN.x;
+      y1 = (offset * sin(perpendicular_theta)) + ORIGIN.y;
+      x2 = (HALF_DIAGONAL * cos(mouse_theta)) + x1;
+      y2 = (HALF_DIAGONAL * sin(mouse_theta)) + y1;
+      stripe = new Stripe(x1, y1, x2, y2);
+      
+      stripes = (Stripe[]) append(stripes, stripe);
+      
+      if (toggle == -1) {
+        offset_count++;
       }
-      
-      edges[i][8] = dist(line_1[0], line_1[1], edges[i][6], edges[i][7]);
-      
-      printArray(edges[i]);
-      println("--");
+      toggle = toggle * -1;
+
+      strokeWeight(PATTERN_WIDTH);
+
+      stripe.findClosestEdge(edges);
     }
     
-    for (int i = 0; i < edges.length; i++) {
+    /*for (int i = 0; i < edges.length; i++) {
       fill(0);
       ellipse(edges[i][6], edges[i][7], 10, 10);
-    }
+    }*/
     
-    rotation_theta += 0.01;
-    if (rotation_theta > 360) {
-      rotation_theta = 0; 
-    }
-
-    shortest_distance = -1;
-    short_distance = -1;
-    for (int i = 0; i < edges.length; i++) {
-      if (edges[i][8] == edges[i][8]) {
-        if (shortest_distance == -1 || edges[i][8] <= edges[shortest_distance][8]) {
-          shortest_distance = i;
-        }
-      }
-    }
-    
-    if (shortest_distance == 0 || shortest_distance == 2) {
-      shortest_distance = 0;
-      short_distance = 2;
-    }else if (shortest_distance == 1 || shortest_distance == 3) {
-      shortest_distance = 1;
-      short_distance = 3; 
-    }
-
-    //_x = (edges[shortest_distance][8] * cos(mouse_theta)) + edges[shortest_distance][6];
-    //_y = (edges[shortest_distance][8] * sin(mouse_theta)) + edges[shortest_distance][7];
-    //_x2 = (edges[short_distance][8] * cos(mouse_theta)) + edges[short_distance][6];
-    //_y2 = (edges[short_distance][8] * sin(mouse_theta)) + edges[short_distance][7];
-    _x = round(edges[shortest_distance][6]);
-    _y = round(edges[shortest_distance][7]);
-    _x2 = round(edges[short_distance][6]);
-    _y2 = round(edges[short_distance][7]);
-    //println(round(edges[shortest_distance][8]));
-    //println(_x);
-    //println(_y);
-    //println(_x2);
-    //println(_y2);
-    //println("--");
-    strokeWeight(2);
-    line(_x, _y, _x2, _y2);
-        
+    incrementRotation();    
   }
   
   void findCorners() {
-    float _x;
-    float _y;
-    float _x2;
-    float _y2;
+    float x;
+    float y;
 
-    _x = center[0] - diagonal * cos(-shape_theta + rotation_theta);
-    _y = center[1] - diagonal * sin(-shape_theta + rotation_theta);
-    corner_1[0] = _x;
-    corner_1[1] = _y;
-    edges[0][0] = _x;
-    edges[0][1] = _y;
-    edges[3][2] = _x;
-    edges[3][3] = _y;
+    x = ORIGIN.x - HALF_DIAGONAL * cos(-SHAPE_THETA + rotation_theta);
+    y = ORIGIN.y - HALF_DIAGONAL * sin(-SHAPE_THETA + rotation_theta);
+    RECT_CORNERS[0] = new PVector(x, y);
+
+    x = ORIGIN.x + HALF_DIAGONAL * cos(SHAPE_THETA + rotation_theta);
+    y = ORIGIN.y + HALF_DIAGONAL * sin(SHAPE_THETA + rotation_theta);
+    RECT_CORNERS[1] = new PVector(x, y);
+
+    x = ORIGIN.x + HALF_DIAGONAL * cos(-SHAPE_THETA + rotation_theta);
+    y = ORIGIN.y + HALF_DIAGONAL * sin(-SHAPE_THETA + rotation_theta);
+    RECT_CORNERS[2] = new PVector(x, y);
     
-    _x = center[0] + diagonal * cos(shape_theta + rotation_theta);
-    _y = center[1] + diagonal * sin(shape_theta + rotation_theta);
-    corner_2[0] = _x;
-    corner_2[1] = _y;
-    edges[0][2] = _x;
-    edges[0][3] = _y;
-    edges[1][0] = _x;
-    edges[1][1] = _y;
-    
-    _x = center[0] + diagonal * cos(-shape_theta + rotation_theta);
-    _y = center[1] + diagonal * sin(-shape_theta + rotation_theta);
-    corner_3[0] = _x;
-    corner_3[1] = _y;
-    edges[1][2] = _x;
-    edges[1][3] = _y;
-    edges[2][0] = _x;
-    edges[2][1] = _y;
-    
-    _x = center[0] - diagonal * cos(shape_theta + rotation_theta);
-    _y = center[1] - diagonal * sin(shape_theta + rotation_theta);
-    corner_4[0] = _x;
-    corner_4[1] = _y;
-    edges[2][2] = _x;
-    edges[2][3] = _y;
-    edges[3][0] = _x;
-    edges[3][1] = _y;
-    
-    strokeWeight(4);
-    stroke(155, 155, 255);
-    
-    for (int i = 0; i < edges.length; i++) {
-      _x = edges[i][0];
-      _y = edges[i][1];
-      _x2 = edges[i][2];
-      _y2 = edges[i][3];
-      line(_x, _y, _x2, _y2);
-    }
-  }
-  
-  float getSlope(float x1, float y1, float x2, float y2) {
-    float slope;
-    
-    slope = (y2 - y1) / (x2 - x1);
-    
-    return slope;
-  }
-  
-  float getYIntercept(float x, float y, float slope) {
-    float y_intercept;
-    
-    y_intercept = y - (x * slope);
-    
-    return y_intercept;
+    x = ORIGIN.x - HALF_DIAGONAL * cos(SHAPE_THETA + rotation_theta);
+    y = ORIGIN.y - HALF_DIAGONAL * sin(SHAPE_THETA + rotation_theta);
+    RECT_CORNERS[3] = new PVector(x, y);
   }
 }
